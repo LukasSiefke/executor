@@ -16,6 +16,7 @@
 #include "DeviceList.h"
 #include "KernelArg.h"
 #include "Kernel.h"
+#include "KernelTime.hpp"
 
 std::istream& operator>>(std::istream& stream, executor::KernelArg& arg);
 
@@ -43,12 +44,12 @@ std::string getDeviceType();
 
 bool supportsDouble();
 
-double executeKernel(cl::Kernel kernel,
+executor::KernelTime executeKernel(cl::Kernel kernel,
                      int localSize1, int localSize2, int localSize3,
                      int globalSize1, int globalSize2, int globalSize3,
                      const std::vector<executor::KernelArg*>& args);
 
-double execute(const executor::Kernel& kernel,
+executor::KernelTime execute(const executor::Kernel& kernel,
                int localSize1, int localSize2, int localSize3,
                int globalSize1, int globalSize2, int globalSize3,
                const std::vector<executor::KernelArg*>& args);
@@ -58,7 +59,7 @@ void benchmark(const executor::Kernel& kernel,
                int globalSize1, int globalSize2, int globalSize3,
                const std::vector<executor::KernelArg*>& args,
                int iterations, double timeout,
-               std::vector<double>& runtimes);
+               std::vector<executor::KernelTime>& runtimes);
 
 double evaluate(const executor::Kernel& kernel,
                 int localSize1, int localSize2, int localSize3,

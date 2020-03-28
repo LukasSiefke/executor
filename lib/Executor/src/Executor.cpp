@@ -4,7 +4,7 @@
 
 namespace {
  
-double getRuntimeInMilliseconds(cl::Event event)
+float getRuntimeInMilliseconds(cl::Event event)
 {
   cl_ulong start;
   cl_ulong end;
@@ -20,9 +20,18 @@ double getRuntimeInMilliseconds(cl::Event event)
                                 sizeof(end), &end, NULL);
   ASSERT(err == CL_SUCCESS);
 
-  return (end - start) * 1.0e-06;
+  return static_cast<float> ((end - start) * 1.0e-06);
 }
 
+float getRuntimeInMilliseconds(cl::Event start, cl::Event end) {
+  cl_ulong time_start, time_end;
+
+  end.wait();
+  
+  start.getProfilingInfo(CL_PROFILING_COMMAND_START, &time_start);
+  end.getProfilingInfo(CL_PROFILING_COMMAND_END, &time_end);
+
+  return static_cast<float> ((time_end - time_start) * 1.0e-06);
 }
 
 void initExecutor(int platformId, int deviceId)
@@ -90,12 +99,17 @@ bool supportsDouble()
   return devicePtr->supportsDouble();
 }
 
-double executeKernel(cl::Kernel kernel,
+executor::KernelTime executeKernel(cl::Kernel kernel,
                      int localSize1, int localSize2, int localSize3,
                      int globalSize1, int globalSize2, int globalSize3,
                      const std::vector<executor::KernelArg*>& args)
 {
+  executor::KernelTime time;
+  cl::Event totalBeginn, uploadBeginn, uploadEnd, downloadBeginn, downloadEnd, totalEnd;
+
   auto& devPtr = executor::globalDeviceList.front();
+
+  devPtr->enqueueMarker(totalBeginn);
 
   cl_uint clLocalSize1 = localSize1;
   cl_uint clGlobalSize1 = globalSize1;
@@ -104,6 +118,8 @@ double executeKernel(cl::Kernel kernel,
   cl_uint clLocalSize3 = localSize3;
   cl_uint clGlobalSize3 = globalSize3;
 
+  devPtr->enqueueMarker(uploadBeginn);
+
   int i = 0;
   for (auto& arg : args) {
     arg->upload();
@@ -111,18 +127,31 @@ double executeKernel(cl::Kernel kernel,
     ++i;
   }
 
+  devPtr->enqueueMarker(uploadEnd);
+  time.upload = getRuntimeInMilliseconds(uploadBeginn, uploadEnd);
+
   auto event = devPtr->enqueue(kernel,
                                cl::NDRange(clGlobalSize1,
                                            clGlobalSize2, clGlobalSize3),
                                cl::NDRange(clLocalSize1,
                                            clLocalSize2, clLocalSize3));
+  time.launch = getRuntimeInMilliseconds(event);
+
+  devPtr->enqueueMarker(downloadBeginn);
 
   for (auto& arg : args) arg->download();
 
-  return getRuntimeInMilliseconds(event);
+  devPtr->enqueueMarker(downloadEnd);
+
+  time.download = getRuntimeInMilliseconds(downloadEnd, downloadEnd);
+
+  devPtr->enqueueMarker(totalEnd);
+  time.total = getRuntimeInMilliseconds(totalBeginn, totalEnd);
+
+  return time;
 }
 
-double execute(const executor::Kernel& kernel,
+executor::KernelTime execute(const executor::Kernel& kernel,
                int localSize1, int localSize2, int localSize3,
                int globalSize1, int globalSize2, int globalSize3,
                const std::vector<executor::KernelArg*>& args)
@@ -136,7 +165,7 @@ void benchmark(const executor::Kernel& kernel,
                int globalSize1, int globalSize2, int globalSize3,
                const std::vector<executor::KernelArg*>& args,
                int iterations, double timeout,
-               std::vector<double>& runtimes)
+               std::vector<executor::KernelTime>& runtimes)
 {
   for (int i = 0; i < iterations; i++) {
     //std::cout << "Iteration: " << i << '\n';
@@ -145,12 +174,12 @@ void benchmark(const executor::Kernel& kernel,
       arg->clear();
     }
 
-    double runtime = executeKernel(kernel.build(), localSize1, localSize2, localSize3,
+    executor::KernelTime runtime = executeKernel(kernel.build(), localSize1, localSize2, localSize3,
                        globalSize1, globalSize2, globalSize3, args);
 
     runtimes.push_back(runtime);
     
-    if (timeout != 0.0 && runtime >= timeout) {
+    if (timeout != 0.0 && runtime.launch >= timeout) {
       return;
     }
   }
@@ -263,4 +292,5 @@ double evaluate(const executor::Kernel& kernel,
 
     return median;
   }
+}
 }

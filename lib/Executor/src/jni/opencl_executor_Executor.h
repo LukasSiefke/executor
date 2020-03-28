@@ -18,17 +18,17 @@ JNIEXPORT void JNICALL Java_opencl_executor_Executor_nativeMatrixMultiply
 /*
  * Class:     opencl_executor_Executor
  * Method:    execute
- * Signature: (Lopencl/executor/Kernel;IIIIII[Lopencl/executor/KernelArg;)D
+ * Signature: (Lopencl/executor/Kernel;IIIIII[Lopencl/executor/KernelArg;)Lopencl/executor/KernelTime;
  */
-JNIEXPORT jdouble JNICALL Java_opencl_executor_Executor_execute
+JNIEXPORT jobject JNICALL Java_opencl_executor_Executor_execute
   (JNIEnv *, jclass, jobject, jint, jint, jint, jint, jint, jint, jobjectArray);
 
 /*
  * Class:     opencl_executor_Executor
  * Method:    benchmark
- * Signature: (Lopencl/executor/Kernel;IIIIII[Lopencl/executor/KernelArg;ID)[D
+ * Signature: (Lopencl/executor/Kernel;IIIIII[Lopencl/executor/KernelArg;ID)[Lopencl/executor/KernelTime;
  */
-JNIEXPORT jdoubleArray JNICALL Java_opencl_executor_Executor_benchmark
+JNIEXPORT jobjectArray JNICALL Java_opencl_executor_Executor_benchmark
   (JNIEnv *, jclass, jobject, jint, jint, jint, jint, jint, jint, jobjectArray, jint, jdouble);
 
 /*

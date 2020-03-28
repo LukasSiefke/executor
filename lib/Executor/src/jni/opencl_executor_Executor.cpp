@@ -14,63 +14,18 @@
 #include "Executor.h"
 #include "util/Logger.h"
 
-enum class Mode {
-  Execute,
-  Evaluate
-};
-
-jdouble
-  executeOrEvaluate(JNIEnv* env, jclass,
-                    jobject jKernel,
-                    jint localSize1, jint localSize2, jint localSize3,
-                    jint globalSize1, jint globalSize2, jint globalSize3,
-                    jobjectArray jArgs,
-                    Mode mode,
-                    jint iterations,
-                    jdouble timeout)
-{
-  double runtime = 0;
-
-  try {
-    
-    auto kernel = getHandle<executor::Kernel>(env, jKernel);
-
-    std::vector<executor::KernelArg*> args(env->GetArrayLength(jArgs));
-    int i = 0;
-    for (auto& p : args) {
-      auto obj = env->GetObjectArrayElement(jArgs, i);
-      p = getHandle<executor::KernelArg>(env, obj);
-      ++i;
+jobject createJavaKernelTime(JNIEnv* env, executor::KernelTime* kernelTimePtr){
+    jclass cls = env->FindClass("opencl/executor/KernelTime");
+    if(!cls) {
+      LOG_ERROR("[JNI ERROR] Cannot find the KernelTime class");
+      return NULL;
     }
 
+    auto methodID = env->GetMethodID(cls, "<init>", "(FFFF)V");
+    auto obj = env->NewObject(cls, methodID, kernelTimePtr->upload, kernelTimePtr->download,
+            kernelTimePtr->launch, kernelTimePtr->total);
 
-    switch(mode) {
-      case Mode::Execute:
-        runtime = execute(*kernel,
-          localSize1, localSize2, localSize3, globalSize1, globalSize2, globalSize3, args);
-        break;
-      case Mode::Evaluate:
-        runtime = evaluate(*kernel,
-          localSize1, localSize2, localSize3, globalSize1, globalSize2, globalSize3,
-          args, iterations, timeout);
-        break;
-      default:
-        return 0;
-    }
-
-  } catch(cl::Error err) {
-    jclass jClass = env->FindClass("opencl/executor/Executor$ExecutorFailureException");
-    if(!jClass) LOG_ERROR("[JNI ERROR] Cannot find the exception class");
-    env->ThrowNew(jClass, 
-        (std::string("Executor failure: ") + err.what() + std::string(". Error code: ") + 
-         executor::logger_impl::getErrorString(err.err())).c_str());
-  } catch(...) {
-    jclass jClass = env->FindClass("opencl/executor/Executor$ExecutorFailureException");
-    if(!jClass) LOG_ERROR("[JNI ERROR] Cannot find the exception class");
-    env->ThrowNew(jClass, "Executor failure");
-  }
-
-  return runtime;
+    return obj;
 }
 
 void 
@@ -126,19 +81,44 @@ void
   env->ReleaseFloatArrayElements(out, cc, 0); 
 }
 
-jdouble
+jobject
   Java_opencl_executor_Executor_execute(JNIEnv* env, jclass jClass,
                                         jobject jKernel,
                                         jint localSize1, jint localSize2, jint localSize3,
                                         jint globalSize1, jint globalSize2, jint globalSize3,
                                         jobjectArray jArgs)
 {
-  return executeOrEvaluate(env, jClass, jKernel,
-        localSize1, localSize2, localSize3, globalSize1, globalSize2, globalSize3,
-        jArgs, Mode::Execute, 0, 0.0);
+  executor::KernelTime kernelTime;
+
+  try {
+    auto kernel = getHandle<executor::Kernel>(env, jKernel);
+
+    std::vector<executor::KernelArg*> args(env->GetArrayLength(jArgs));
+    int i = 0;
+    for (auto& p : args) {
+      auto obj = env->GetObjectArrayElement(jArgs, i);
+      p = getHandle<executor::KernelArg>(env, obj);
+      ++i;
+    }
+
+
+    kernelTime = execute(*kernel, localSize1, localSize2, localSize3, globalSize1, globalSize2, globalSize3, args);
+  } catch(cl::Error err) {
+    jclass jClass = env->FindClass("opencl/executor/Executor$ExecutorFailureException");
+    if(!jClass) LOG_ERROR("[JNI ERROR] Cannot find the exception class");
+    env->ThrowNew(jClass, 
+        (std::string("Executor failure: ") + err.what() + std::string(". Error code: ") + 
+         executor::logger_impl::getErrorString(err.err())).c_str());
+  } catch(...) {
+    jclass jClass = env->FindClass("opencl/executor/Executor$ExecutorFailureException");
+    if(!jClass) LOG_ERROR("[JNI ERROR] Cannot find the exception class");
+    env->ThrowNew(jClass, "Executor failure");
+  }
+
+  return createJavaKernelTime(env, &kernelTime);;
 }
 
-jdoubleArray
+jobjectArray
   Java_opencl_executor_Executor_benchmark(
     JNIEnv* env,
     jclass,
@@ -149,7 +129,7 @@ jdoubleArray
     jint iterations,
     jdouble timeout)
 {
-  std::vector<double> runtimes;
+  std::vector<executor::KernelTime> runtimes;
 
   try {
     
@@ -178,9 +158,20 @@ jdoubleArray
   }
 
   if (runtimes.size() > 0) {
-    jdoubleArray jRuntimes;
-    jRuntimes = env->NewDoubleArray(runtimes.size());
-    env->SetDoubleArrayRegion(jRuntimes, 0, runtimes.size(), runtimes.data());
+    jclass kernelTimeCls = env->FindClass("opencl/executor/KernelTime");
+    if(!kernelTimeCls) {
+      LOG_ERROR("[JNI ERROR] Cannot find the KernelTime class");
+      return nullptr;
+    }
+
+    //Create Output-Array
+		auto jRuntimes = (jobjectArray) env->NewObjectArray(iterations, kernelTimeCls, NULL);
+
+		for (unsigned int i = 0; i < iterations; ++i){
+			auto jkernelTime = createJavaKernelTime(env, &runtimes.at(i));
+			env->SetObjectArrayElement(jRuntimes, i, jkernelTime);
+		}
+
     return jRuntimes;
   } else {
     jclass jClass = env->FindClass("opencl/executor/Executor$ExecutorFailureException");
@@ -199,12 +190,36 @@ jdouble
                                         jint iterations,
                                         jdouble timeout)
 {
-  return executeOrEvaluate(env, jClass, jKernel,
-        localSize1, localSize2, localSize3, globalSize1, globalSize2, globalSize3,
-        jArgs, Mode::Evaluate, iterations, timeout);
+  double runtime = 0;
+
+  try {
+    auto kernel = getHandle<executor::Kernel>(env, jKernel);
+
+    std::vector<executor::KernelArg*> args(env->GetArrayLength(jArgs));
+    int i = 0;
+    for (auto& p : args) {
+      auto obj = env->GetObjectArrayElement(jArgs, i);
+      p = getHandle<executor::KernelArg>(env, obj);
+      ++i;
+    }
+
+    runtime = evaluate(*kernel, localSize1, localSize2, localSize3, globalSize1, globalSize2, globalSize3,
+        args, iterations, timeout);
+
+  } catch(cl::Error err) {
+    jclass jClass = env->FindClass("opencl/executor/Executor$ExecutorFailureException");
+    if(!jClass) LOG_ERROR("[JNI ERROR] Cannot find the exception class");
+    env->ThrowNew(jClass, 
+        (std::string("Executor failure: ") + err.what() + std::string(". Error code: ") + 
+         executor::logger_impl::getErrorString(err.err())).c_str());
+  } catch(...) {
+    jclass jClass = env->FindClass("opencl/executor/Executor$ExecutorFailureException");
+    if(!jClass) LOG_ERROR("[JNI ERROR] Cannot find the exception class");
+    env->ThrowNew(jClass, "Executor failure");
+  }
+
+  return runtime;
 }
-
-
 
 void Java_opencl_executor_Executor_init(JNIEnv *, jclass,
                                         jint platformId,

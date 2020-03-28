@@ -48,13 +48,13 @@ void GlobalArg::upload()
   // create buffers on device
   vector.createDeviceBuffers();
   // start upload
-  vector.startUpload();
+  return vector.copyDataToDevices();
 }
 
 void GlobalArg::download()
 {
+  vector.dataOnDeviceModified(); //TODO
   if (isOutput) {
-    vector.dataOnDeviceModified();
     vector.copyDataToHost();
   }
 }

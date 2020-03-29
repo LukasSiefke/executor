@@ -19,7 +19,7 @@ public class KernelTime {
 	 * @param launch   time to launch the kernel in milliseconds
 	 * @param total    total time of execution in milliseconds
 	 */
-	protected KernelTime(float upload, float download, float launch, float total) {
+	public KernelTime(float upload, float download, float launch, float total) {
 		this.upload = upload;
 		this.download = download;
 		this.launch = launch;
@@ -83,7 +83,7 @@ public class KernelTime {
 				+ ", download-time: " + humanReadableMilliseconds(df, download) + ")";
 	}
 
-	static String humanReadableMilliseconds(DecimalFormat df, double time) {
+	public static String humanReadableMilliseconds(DecimalFormat df, double time) {
 		String unit = "ms";
 		if (time > 1000) {
 			time /= 1000;

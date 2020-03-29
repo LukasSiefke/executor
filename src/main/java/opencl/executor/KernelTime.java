@@ -63,6 +63,17 @@ public class KernelTime {
 		return total;
 	}
 
+	/**
+	 * Adds this KernelTime to another KernelTime.
+	 * 
+	 * @param kernelTime KernelTime, which should be added
+	 * @return sum of the kerneltimes
+	 */
+	public KernelTime addKernelTime(KernelTime kernelTime) {
+		return new KernelTime(upload + kernelTime.upload, download + kernelTime.download, launch + kernelTime.launch,
+				total + kernelTime.total);
+	}
+
 	@Override
 	public String toString() {
 		DecimalFormat df = new DecimalFormat();

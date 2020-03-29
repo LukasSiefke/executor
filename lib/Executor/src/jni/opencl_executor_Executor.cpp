@@ -167,7 +167,7 @@ jobjectArray
     //Create Output-Array
 		auto jRuntimes = (jobjectArray) env->NewObjectArray(iterations, kernelTimeCls, NULL);
 
-		for (unsigned int i = 0; i < iterations; ++i){
+		for (int i = 0; i < iterations; ++i){
 			auto jkernelTime = createJavaKernelTime(env, &runtimes.at(i));
 			env->SetObjectArrayElement(jRuntimes, i, jkernelTime);
 		}

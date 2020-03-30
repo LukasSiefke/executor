@@ -148,8 +148,8 @@ cl::Event Device::enqueue(const cl::Kernel& kernel,
   return event;
 }
 
-void Device::enqueueMarker(cl::Event& event) const {
-  _commandQueue.enqueueMarker(&event);
+void Device::enqueueMarker(cl::Event* event) const {
+  _commandQueue.enqueueMarker(event);
 }
 
 cl::Event Device::enqueueWrite(const  DeviceBuffer& buffer,

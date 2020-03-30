@@ -89,7 +89,7 @@ public:
                     const cl::NDRange& offset = cl::NullRange,
                     const std::function<void()> callback = nullptr) const;
 
-  void enqueueMarker(cl::Event& event) const;
+  void enqueueMarker(cl::Event* event) const;
 
   ///
   /// \brief Enqueues a memory operation to copy data to the devices memory

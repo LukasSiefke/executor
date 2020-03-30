@@ -2,8 +2,6 @@
 #include <algorithm>
 #include <cassert>
 
-namespace {
- 
 float getRuntimeInMilliseconds(cl::Event event)
 {
   cl_ulong start;
@@ -23,13 +21,19 @@ float getRuntimeInMilliseconds(cl::Event event)
   return static_cast<float> ((end - start) * 1.0e-06);
 }
 
-float getRuntimeInMilliseconds(cl::Event start, cl::Event end) {
+float getRuntimeInMilliseconds(cl::Event &start, cl::Event &end) {
   cl_ulong time_start, time_end;
+  cl_int err;
 
   end.wait();
   
-  start.getProfilingInfo(CL_PROFILING_COMMAND_START, &time_start);
-  end.getProfilingInfo(CL_PROFILING_COMMAND_END, &time_end);
+  err = clGetEventProfilingInfo(start(), CL_PROFILING_COMMAND_SUBMIT, sizeof(start), &time_start, NULL);
+
+  ASSERT(err == CL_SUCCESS);
+
+  err = clGetEventProfilingInfo(end(), CL_PROFILING_COMMAND_SUBMIT, sizeof(end), &time_end, NULL);
+
+  ASSERT(err == CL_SUCCESS);
 
   return static_cast<float> ((time_end - time_start) * 1.0e-06);
 }
@@ -109,7 +113,7 @@ executor::KernelTime executeKernel(cl::Kernel kernel,
 
   auto& devPtr = executor::globalDeviceList.front();
 
-  devPtr->enqueueMarker(totalBeginn);
+  devPtr->enqueueMarker(&totalBeginn);
 
   cl_uint clLocalSize1 = localSize1;
   cl_uint clGlobalSize1 = globalSize1;
@@ -118,7 +122,7 @@ executor::KernelTime executeKernel(cl::Kernel kernel,
   cl_uint clLocalSize3 = localSize3;
   cl_uint clGlobalSize3 = globalSize3;
 
-  devPtr->enqueueMarker(uploadBeginn);
+  devPtr->enqueueMarker(&uploadBeginn);
 
   int i = 0;
   for (auto& arg : args) {
@@ -127,7 +131,7 @@ executor::KernelTime executeKernel(cl::Kernel kernel,
     ++i;
   }
 
-  devPtr->enqueueMarker(uploadEnd);
+  devPtr->enqueueMarker(&uploadEnd);
   time.upload = getRuntimeInMilliseconds(uploadBeginn, uploadEnd);
 
   auto event = devPtr->enqueue(kernel,
@@ -137,15 +141,15 @@ executor::KernelTime executeKernel(cl::Kernel kernel,
                                            clLocalSize2, clLocalSize3));
   time.launch = getRuntimeInMilliseconds(event);
 
-  devPtr->enqueueMarker(downloadBeginn);
+  devPtr->enqueueMarker(&downloadBeginn);
 
   for (auto& arg : args) arg->download();
 
-  devPtr->enqueueMarker(downloadEnd);
+  devPtr->enqueueMarker(&downloadEnd);
 
-  time.download = getRuntimeInMilliseconds(downloadEnd, downloadEnd);
+  time.download = getRuntimeInMilliseconds(downloadBeginn, downloadEnd);
 
-  devPtr->enqueueMarker(totalEnd);
+  devPtr->enqueueMarker(&totalEnd);
   time.total = getRuntimeInMilliseconds(totalBeginn, totalEnd);
 
   return time;
@@ -293,4 +297,4 @@ double evaluate(const executor::Kernel& kernel,
     return median;
   }
 }
-}
+

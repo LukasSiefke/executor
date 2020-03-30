@@ -115,7 +115,7 @@ jobject
     env->ThrowNew(jClass, "Executor failure");
   }
 
-  return createJavaKernelTime(env, &kernelTime);;
+  return createJavaKernelTime(env, &kernelTime);
 }
 
 jobjectArray
